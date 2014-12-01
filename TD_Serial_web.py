@@ -3,10 +3,8 @@ import sys
 from time import sleep
 from convert import convert
 import serial
-import json
 from BaseHTTPServer import BaseHTTPRequestHandler,HTTPServer
 
-PORT_NUMBER = 9876
 
 class myHandler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -19,21 +17,33 @@ class myHandler(BaseHTTPRequestHandler):
 
 
 def signal_handler(signal,frame):
-    #Gracefully shut down by closing serial port
-    print('closing')
+    # Gracefully shut down by closing serial port and web server
+    print('KeyboardInterrupt, shutting down')
     ser.write('m 0\r')
     ser.close()
     server.socket.close()
     sys.exit(0)
 
 
-def open_TM_serial(device_location):
+def open_TM_serial(second_location):
     global ser
-    ser = serial.Serial(device_location, 115200)
+    first_location = '/dev/serial/by-id/usb-altusmetrum.org_TeleDongle-v0.2_000568-if00'
+
+    try:
+        ser = serial.Serial(first_location, 115200)
+    # Check what the actual exception is
+    except serial.SerialException:
+        print('Auto detect fail, attempt connection with manual location')
+        try:
+            ser = serial.Serial(second_location, 115200)
+        except:
+            print('Cannot connect with either location')
+
     if ser.isOpen():
         print('Serial connection open')
     else:
         print('Serial connection fail')
+        sys.exit(0)
 
     #Throw away any old data
     ser.flushInput()
@@ -50,15 +60,19 @@ def open_TM_serial(device_location):
 
 def get_last_serial():
     data = ser.readline()
-    # Split off the TELEM part and convert
+    # Split off the 'TELEM 22' part and convert
     return convert(data[8:])
 
 # Any constants
-device_location = '/dev/ttyACM0'
+PORT_NUMBER = 9876
 
-#Start things up
+# Only set this if auto-detect failing
+# Unplug then plug in TeleDonge, then run dmesg to get location
+second_location = '/dev/ttyACM0'
+
+# Open up the serial connection to TM
 open_TM_serial(device_location)
-#If we kill program then will close gracefully
+# If we kill program then will close gracefully
 signal.signal(signal.SIGINT, signal_handler)
 
 server = HTTPServer(('',PORT_NUMBER),myHandler)
