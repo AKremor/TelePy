@@ -40,7 +40,7 @@ signal.signal(signal.SIGINT, signal_handler)
 for i in range(1,200):
         data = ser.readline()
         #Split off the TELEM part
-        data = data[8:]
+        data = data.split(' ')[1]
         print(convert(data))
 
 ser.write('m 0\r')
